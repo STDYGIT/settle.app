@@ -246,46 +246,63 @@
                 return;
             }
 
-            // Find the maximum person ID from all transactions
-            let maxPersonId = 0;
+            // Store transactions and track direct connections
+            const transactions = [];
+            const directTransactions = new Set();
+
+            // Collect all transactions and direct connections
             for (let i = 0; i < numTransactions; i++) {
                 const giver = parseInt(document.getElementById(`giver${i}`).value);
                 const receiver = parseInt(document.getElementById(`receiver${i}`).value);
-                if (isNaN(giver) || isNaN(receiver) || giver < 1 || receiver < 1) {
-                    alert("Please enter valid person IDs for all transactions");
-                    return;
-                }
-                maxPersonId = Math.max(maxPersonId, giver, receiver);
-            }
-
-            const numPeople = maxPersonId;
-            const balance = Array(numPeople).fill(0);
-
-            // Calculate balances
-            for (let i = 0; i < numTransactions; i++) {
-                const giver = parseInt(document.getElementById(`giver${i}`).value) - 1;
-                const receiver = parseInt(document.getElementById(`receiver${i}`).value) - 1;
                 const amount = parseFloat(document.getElementById(`amount${i}`).value);
 
-                if (isNaN(amount) || amount < 0) {
-                    alert("Please enter valid amounts for all transactions");
+                if (isNaN(giver) || isNaN(receiver) || isNaN(amount) || giver < 1 || receiver < 1 || amount < 0) {
+                    alert("Please enter valid values for all transactions");
                     return;
                 }
 
-                balance[giver] -= amount;
-                balance[receiver] += amount;
+                transactions.push({
+                    'GiverID': giver,
+                    'ReceiverID': receiver,
+                    'Amount': amount
+                });
+
+                // Store direct transaction pairs
+                directTransactions.add([giver, receiver].join(','));
+                directTransactions.add([receiver, giver].join(','));
             }
 
-            // Separate into owes and owed arrays
-            const owes = [], owed = [], owesAmount = [], owedAmount = [];
+            // Initialize balance map to track net amounts for each person
+            const balance = new Map();
 
-            for (let i = 0; i < numPeople; i++) {
-                if (balance[i] < 0) {
-                    owes.push(i);
-                    owesAmount.push(-balance[i]);
-                } else if (balance[i] > 0) {
-                    owed.push(i);
-                    owedAmount.push(balance[i]);
+            // Calculate net balance for each person
+            for (const txn of transactions) {
+                const giver = txn['GiverID'];
+                const receiver = txn['ReceiverID'];
+                const amount = txn['Amount'];
+
+                // Update balances
+                balance.set(giver, (balance.get(giver) || 0) - amount);
+                balance.set(receiver, (balance.get(receiver) || 0) + amount);
+            }
+
+            // Filter out settled persons with zero balance
+            const netBalance = new Map();
+            for (const [person, amount] of balance) {
+                if (amount !== 0) {
+                    netBalance.set(person, amount);
+                }
+            }
+
+            // Split into creditors and debtors
+            const creditors = new Map();
+            const debtors = new Map();
+
+            for (const [person, amount] of netBalance) {
+                if (amount > 0) {
+                    creditors.set(person, amount);
+                } else {
+                    debtors.set(person, -amount);
                 }
             }
 
@@ -295,33 +312,56 @@
             outputDiv.style.display = 'block';
 
             let html = '';
-            let i = 0, j = 0;
+            const settlements = [];
 
-            while (i < owes.length && j < owed.length) {
-                const settlementAmount = Math.min(owesAmount[i], owedAmount[j]);
-                html += `
-                    <div class="settlement-item">
-                        <span>Person ${owes[i] + 1} pays Person ${owed[j] + 1}</span>
-                        <span class="settlement-amount">₹${settlementAmount.toFixed(2)}</span>
-                    </div>
-                `;
+            // Optimal settlement logic that restricts indirect settlements
+            while (debtors.size > 0 && creditors.size > 0) {
+                const [debtor, debtAmount] = debtors.entries().next().value;
+                const [creditor, creditAmount] = creditors.entries().next().value;
 
-                owesAmount[i] -= settlementAmount;
-                owedAmount[j] -= settlementAmount;
+                // Settle the minimum amount possible
+                const settledAmount = Math.min(debtAmount, creditAmount);
 
-                if (owesAmount[i] === 0) i++;
-                if (owedAmount[j] === 0) j++;
+                // Check if there's a direct connection between debtor and creditor
+                const pairKey = [debtor, creditor].join(',');
+                if (directTransactions.has(pairKey)) {
+                    settlements.push([debtor, creditor, settledAmount]);
+
+                    // Update balances
+                    debtors.set(debtor, debtAmount - settledAmount);
+                    creditors.set(creditor, creditAmount - settledAmount);
+
+                    // Remove settled accounts
+                    if (debtors.get(debtor) === 0) {
+                        debtors.delete(debtor);
+                    }
+                    if (creditors.get(creditor) === 0) {
+                        creditors.delete(creditor);
+                    }
+                } else {
+                    // If no valid direct settlement found, break out of loop
+                    break;
+                }
             }
 
-            if (html === '') {
-                html = '<div class="settlement-item">No settlements needed - all balances are settled!</div>';
+            // Display settlements
+            if (settlements.length === 0) {
+                html = '<div class="settlement-item">🎉 All balances are settled. No transactions required!</div>';
+            } else {
+                for (const [debtor, creditor, amount] of settlements) {
+                    html += `
+                        <div class="settlement-item">
+                            <span>Person ${creditor} pays Person ${debtor}</span>
+                            <span class="settlement-amount">₹${amount.toFixed(2)}</span>
+                        </div>
+                    `;
+                }
+                html += '<div class="settlement-item" style="margin-top: 10px;">🎉 All balances are settled with minimal transactions!</div>';
             }
 
             settlementContent.innerHTML = html;
         }
     </script>
 </body>
-
-</html>
 
 </html>
