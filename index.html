@@ -166,10 +166,6 @@
         <div class="card">
             <div class="input-group">
                 <div class="input-field">
-                    <label for="numPeople">Number of People</label>
-                    <input type="number" id="numPeople" min="1" placeholder="Enter number of people">
-                </div>
-                <div class="input-field">
                     <label for="numTransactions">Number of Transactions</label>
                     <input type="number" id="numTransactions" min="1" placeholder="Enter number of transactions">
                 </div>
@@ -243,14 +239,26 @@
         }
 
         function calculateSettlement() {
-            const numPeople = parseInt(document.getElementById("numPeople").value);
             const numTransactions = parseInt(document.getElementById("numTransactions").value);
 
-            if (!numPeople || !numTransactions || numPeople < 1 || numTransactions < 1) {
-                alert("Please enter valid numbers for people and transactions");
+            if (!numTransactions || numTransactions < 1) {
+                alert("Please enter a valid number of transactions");
                 return;
             }
 
+            // Find the maximum person ID from all transactions
+            let maxPersonId = 0;
+            for (let i = 0; i < numTransactions; i++) {
+                const giver = parseInt(document.getElementById(`giver${i}`).value);
+                const receiver = parseInt(document.getElementById(`receiver${i}`).value);
+                if (isNaN(giver) || isNaN(receiver) || giver < 1 || receiver < 1) {
+                    alert("Please enter valid person IDs for all transactions");
+                    return;
+                }
+                maxPersonId = Math.max(maxPersonId, giver, receiver);
+            }
+
+            const numPeople = maxPersonId;
             const balance = Array(numPeople).fill(0);
 
             // Calculate balances
@@ -259,10 +267,8 @@
                 const receiver = parseInt(document.getElementById(`receiver${i}`).value) - 1;
                 const amount = parseFloat(document.getElementById(`amount${i}`).value);
 
-                if (isNaN(giver) || isNaN(receiver) || isNaN(amount) ||
-                    giver < 0 || receiver < 0 || amount < 0 ||
-                    giver >= numPeople || receiver >= numPeople) {
-                    alert("Please enter valid values for all transactions");
+                if (isNaN(amount) || amount < 0) {
+                    alert("Please enter valid amounts for all transactions");
                     return;
                 }
 
@@ -315,5 +321,7 @@
         }
     </script>
 </body>
+
+</html>
 
 </html>
